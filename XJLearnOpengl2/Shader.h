@@ -16,10 +16,12 @@ namespace xjg
 	public:
 		unsigned int id;
 		string vertexPath;
+		string geometryPath;
 		string fragmentPath;
-		Shader():id(0), vertexPath("DefaultVertexShader.glsl"), fragmentPath("DefaultFragmentShader.glsl"){}
-		Shader(string vertexPath, string fragmentPath):id(0), vertexPath(vertexPath), fragmentPath(fragmentPath) {}
-
+		Shader():id(0), vertexPath("DefaultVertexShader.glsl"), fragmentPath("DefaultFragmentShader.glsl"), geometryPath("DefaultGeometryShader.glsl") {}
+		Shader(string vertexPath, string fragmentPath):id(0), vertexPath(vertexPath), fragmentPath(fragmentPath), geometryPath("DefaultGeometryShader.glsl"){}
+		Shader(string vertexPath, string geometryPath, string fragmentPath):id(0), vertexPath(vertexPath), fragmentPath(fragmentPath), geometryPath(geometryPath) {}
+		
 		//一般由System调用
 		void loadShader()
 		{
@@ -30,21 +32,28 @@ namespace xjg
 			}
 			std::string vertexCode;
 			std::string fragmentCode;
+			std::string geometryCode;
 			std::ifstream vShaderFile;
 			std::ifstream fShaderFile;
+			std::ifstream gShaderFile;
 			vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 			fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+			gShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 			try
 			{
 				vShaderFile.open(vertexPath);
 				fShaderFile.open(fragmentPath);
-				std::stringstream vShaderStream, fShaderStream;
+				gShaderFile.open(geometryPath);
+				std::stringstream vShaderStream, fShaderStream, gShaderStream;
 				vShaderStream << vShaderFile.rdbuf();
 				fShaderStream << fShaderFile.rdbuf();
+				gShaderStream << gShaderFile.rdbuf();
 				vShaderFile.close();
 				fShaderFile.close();
+				gShaderFile.close();
 				vertexCode = vShaderStream.str();
 				fragmentCode = fShaderStream.str();
+				geometryCode = gShaderStream.str();
 
 			}
 			catch (std::ifstream::failure e)
@@ -53,8 +62,9 @@ namespace xjg
 			}
 			const char *vShaderCode = vertexCode.c_str();
 			const char *fShaderCode = fragmentCode.c_str();
+			const char *gShaderCode = geometryCode.c_str();
 
-			unsigned int vertex, fragment;
+			unsigned int vertex, fragment, geometry;
 			int success;
 			char infoLog[512];
 
@@ -79,9 +89,20 @@ namespace xjg
 				std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
 			}
 
+			geometry = glCreateShader(GL_GEOMETRY_SHADER);
+			glShaderSource(geometry, 1, &gShaderCode, NULL);
+			glCompileShader(geometry);
+			glGetShaderiv(geometry, GL_COMPILE_STATUS, &success);
+			if (!success)
+			{
+				glGetShaderInfoLog(geometry, 512, NULL, infoLog);
+				std::cout << "ERROR::SHADER::GEOMETRY::COMPILATION_FAILED\n" << infoLog << std::endl;
+			}
 			id = glCreateProgram();
 			glAttachShader(id, vertex);
+			glAttachShader(id, geometry);
 			glAttachShader(id, fragment);
+			
 			glLinkProgram(id);
 
 			glGetProgramiv(id, GL_LINK_STATUS, &success);
@@ -91,7 +112,9 @@ namespace xjg
 				std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
 			}
 			glDeleteShader(vertex);
+			glDeleteShader(geometry);
 			glDeleteShader(fragment);
+
 		}
 		void use()
 		{
